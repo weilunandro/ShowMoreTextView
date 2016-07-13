@@ -2,13 +2,21 @@ package org.android.view;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Color;
 import android.support.annotation.NonNull;
 import android.text.DynamicLayout;
 import android.text.Layout;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.StaticLayout;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
+import android.text.style.ForegroundColorSpan;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.StringBuilderPrinter;
+import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.TextView;
 
@@ -48,6 +56,7 @@ public class ShowMoreTextView extends TextView {
 
         setEllipsize(null);
         mOriginText = getText();
+        setMovementMethod(LinkMovementMethod.getInstance());
 
         mShowMoreMaxLines = 3;
 
@@ -57,13 +66,14 @@ public class ShowMoreTextView extends TextView {
 
                 // Layout layout = getLayout();
                 Layout originLayout = getLayout();
-                StaticLayout layout = new StaticLayout(getText(), originLayout.getPaint(), originLayout.getWidth(), originLayout.getAlignment(), originLayout.getSpacingMultiplier(), originLayout.getSpacingAdd(), false);
+
+                DynamicLayout layout = new DynamicLayout(getText(), originLayout.getPaint(), originLayout.getWidth(), originLayout.getAlignment(), originLayout.getSpacingMultiplier(), originLayout.getSpacingAdd(), false);
                 Log.d(TAG, "The origin text is " + getText());
 
                 String content = getContent(layout, mShowMoreMaxLines);
                 Log.d(TAG, "onPreDraw: The head " + mShowMoreMaxLines + " lines contents is " + content);
 
-                String adjustContent = adjustContent(layout, content, mShowMoreMaxLines, mEllipse, mShowMore, 3);
+                SpannableString adjustContent = adjustContent(layout, content, mShowMoreMaxLines, mEllipse, mShowMore, 3);
                 Log.d(TAG, "onPreDraw: The head " + mShowMoreMaxLines + "  adjust lines contents is " + adjustContent );
 
                 setText(adjustContent);
@@ -73,7 +83,8 @@ public class ShowMoreTextView extends TextView {
         });
     }
 
-    private String adjustContent(StaticLayout layout, String content, int mShowMoreMaxLines, String mEllipse, String mShowMore, int space) {
+    private SpannableString adjustContent(Layout layout, String content, int mShowMoreMaxLines, String mEllipse, String mShowMore, int space) {
+
         StringBuilder builder = new StringBuilder(mEllipse);
         for (int i = 0; i < space; i++){
             builder.append(" ");
@@ -94,11 +105,21 @@ public class ShowMoreTextView extends TextView {
             lineCount  = tempLayout.getLineCount();
         }
 
-        return adjustContent;
+        SpannableString result = new SpannableString(adjustContent);
+        result.setSpan(new ForegroundColorSpan(Color.RED), adjustContent.length() - mShowMore.length(), adjustContent.length(), Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
+        result.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                setText(mOriginText);
+                setMaxLines(Integer.MAX_VALUE);
+                requestLayout();
+            }
+        }, adjustContent.length() - mShowMore.length(), adjustContent.length(), Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
+        return result;
 
     }
 
-    private String getContent(StaticLayout layout, int requireMaxLines) {
+    private String getContent(Layout layout, int requireMaxLines) {
         int maxLines = layout.getLineCount();
         requireMaxLines = requireMaxLines > maxLines ? maxLines : requireMaxLines;
 
