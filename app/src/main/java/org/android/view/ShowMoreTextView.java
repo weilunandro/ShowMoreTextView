@@ -8,6 +8,7 @@ import android.text.DynamicLayout;
 import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.method.LinkMovementMethod;
 import android.text.style.AbsoluteSizeSpan;
 import android.text.style.ClickableSpan;
@@ -17,6 +18,8 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.TextView;
+
+import org.android.view.utils.SpannableUtils;
 
 
 public class ShowMoreTextView extends TextView {
@@ -45,6 +48,8 @@ public class ShowMoreTextView extends TextView {
 
     private int mShowMoreTextColor;
 
+    private Spannable mCustomShowMore;
+
     public ShowMoreTextView(Context context) {
         super(context);
 
@@ -67,23 +72,47 @@ public class ShowMoreTextView extends TextView {
         mShowMoreTextSize = 12;
         mShowMoreTextColor = Color.BLUE;
 
+
+        ForegroundColorSpan colorSpan = new ForegroundColorSpan(Color.CYAN);
+        AbsoluteSizeSpan sizeSpan = new AbsoluteSizeSpan(18, true);
+        ClickableSpan clickableSpan = new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                setText(mOriginText);
+            }
+        };
+
+        SpannableString showMore = new SpannableString(mShowMore);
+        showMore.setSpan(colorSpan,0 , mShowMore.length(), Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
+        showMore.setSpan(sizeSpan, 0, mShowMore.length(),  Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
+        showMore.setSpan(clickableSpan, 0, mShowMore.length(), Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
+
+        setCustomShowMore(showMore);
+
         getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
             @Override
             public boolean onPreDraw() {
 
-                // Layout layout = getLayout();
-                Layout originLayout = getLayout();
+                int lineCount = getLineCount();
+                if (lineCount > mShowMoreMaxLines) {
 
-                DynamicLayout layout = new DynamicLayout(getText(), originLayout.getPaint(), originLayout.getWidth(), originLayout.getAlignment(), originLayout.getSpacingMultiplier(), originLayout.getSpacingAdd(), false);
-                Log.d(TAG, "The origin text is " + getText());
+                    Layout originLayout = getLayout();
 
-                String content = getContent(layout, mShowMoreMaxLines);
-                Log.d(TAG, "onPreDraw: The head " + mShowMoreMaxLines + " lines contents is " + content);
+                    DynamicLayout layout = new DynamicLayout(getText(), originLayout.getPaint(), originLayout.getWidth(), originLayout.getAlignment(), originLayout.getSpacingMultiplier(), originLayout.getSpacingAdd(), false);
+                    String content = getContent(layout, mShowMoreMaxLines);
 
-                SpannableString adjustContent = adjustContent(layout, content, mShowMoreMaxLines, mEllipse, mShowMore, 3);
-                Log.d(TAG, "onPreDraw: The head " + mShowMoreMaxLines + "  adjust lines contents is " + adjustContent);
+                    Spannable adjustContent;
+                    if (mCustomShowMore != null) {
+                        adjustContent = adjustContent(layout, content, mShowMoreMaxLines, mEllipse, mCustomShowMore, 3);
+                    } else {
 
-                setText(adjustContent);
+                        adjustContent = adjustContent(layout, content, mShowMoreMaxLines, mEllipse, mShowMore, 3);
+                    }
+                    Log.d(TAG, "onPreDraw: The head " + mShowMoreMaxLines + "  adjust lines contents is " + adjustContent);
+
+                    setText(adjustContent);
+
+                }
                 getViewTreeObserver().removeOnPreDrawListener(this);
                 return false;
             }
@@ -151,6 +180,36 @@ public class ShowMoreTextView extends TextView {
 
     }
 
+    private Spannable adjustContent(Layout layout, String content, int showMoreMaxLines, String mEllipse, Spannable mShowMore, int space) {
+
+        /* 拼接尾部信息 */
+        StringBuilder builder = new StringBuilder(mEllipse);
+        for (int i = 0; i < space; i++) {
+            builder.append(" ");
+        }
+        String ellipse = builder.toString();
+
+
+        SpannableStringBuilder spannableStringBuilder = SpannableUtils.combineStringAndSpannable(content + ellipse, mShowMore);
+
+
+        /* 测量大小,并不断截取原始字符串,行数为showMoreMaxLines为止 */
+        DynamicLayout tempLayout = new DynamicLayout(spannableStringBuilder, layout.getPaint(), layout.getWidth(), layout.getAlignment(), layout.getSpacingMultiplier(), layout.getSpacingAdd(), false);
+        int iterCount = 0;
+        int lineCount = tempLayout.getLineCount();
+        while (lineCount > showMoreMaxLines) {
+            iterCount++;
+            spannableStringBuilder = SpannableUtils.combineStringAndSpannable(content.substring(0, content.length() - iterCount) + ellipse, mShowMore);
+
+            tempLayout = new DynamicLayout(spannableStringBuilder, layout.getPaint(), layout.getWidth(), layout.getAlignment(), layout.getSpacingMultiplier(), layout.getSpacingAdd(), false);
+            lineCount = tempLayout.getLineCount();
+        }
+
+
+        return spannableStringBuilder;
+
+    }
+
     /**
      * 获取layout中的前面指定行的内容
      * @param layout 获取内容的layout
@@ -188,4 +247,7 @@ public class ShowMoreTextView extends TextView {
         return layout.getText().subSequence(begin, end).toString();
     }
 
+    public void setCustomShowMore(Spannable customShowMore){
+        this.mCustomShowMore = customShowMore;
+    }
 }
